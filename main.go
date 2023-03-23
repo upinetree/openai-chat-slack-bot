@@ -7,55 +7,66 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/sashabaranov/go-openai"
 )
 
-type ChatInput struct {
+type ChatRequest struct {
 	Message string `json:"message"`
 }
 
-func HandleRequest(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	var chatInput ChatInput
-	err := json.Unmarshal([]byte(req.Body), &chatInput)
+type ChatResponse struct {
+	Response string `json:"response"`
+}
+
+func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	var chatRequest ChatRequest
+
+	err := json.Unmarshal([]byte(request.Body), &chatRequest)
 	if err != nil {
-		return events.APIGatewayProxyResponse{
-			Body:       fmt.Sprintf("Failed to parse input: %s", err.Error()),
-			StatusCode: 400,
-		}, nil
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 400}, nil
 	}
 
+	response, err := sendToOpenAI(ctx, chatRequest.Message)
+	if err != nil {
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
+	}
+
+	chatResponse := ChatResponse{Response: response}
+	responseBody, err := json.Marshal(chatResponse)
+	if err != nil {
+		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
+	}
+
+	return events.APIGatewayProxyResponse{Body: string(responseBody), StatusCode: 200}, nil
+}
+
+func sendToOpenAI(ctx context.Context, message string) (string, error) {
 	client := openai.NewClient(os.Getenv("OPENAI_API_KEY"))
 
-	response, _, err := client.ChatCompletion.Create(ctx, &openai.ChatCompletionCreateParams{
-		Model: "gpt-3.5-turbo",
-		Messages: []*openai.Message{
+	request := openai.ChatCompletionRequest{
+		Model: openai.GPT3Dot5Turbo,
+		Messages: []openai.ChatCompletionMessage{
 			{
-				Role:    "system",
-				Content: "You are a helpful assistant.",
-			},
-			{
-				Role:    "user",
-				Content: chatInput.Message,
+				Role:    openai.ChatMessageRoleUser,
+				Content: message,
 			},
 		},
-	})
-
-	if err != nil {
-		return events.APIGatewayProxyResponse{
-			Body:       fmt.Sprintf("Failed to get chat response: %s", err.Error()),
-			StatusCode: 500,
-		}, nil
 	}
 
-	assistantMessage := response.Choices[0].Message.Content
+	resp, err := client.CreateChatCompletion(ctx, request)
+	if err != nil {
+		return "", err
+	}
 
-	return events.APIGatewayProxyResponse{
-		Body:       assistantMessage,
-		StatusCode: 200,
-	}, nil
+	return resp.Choices[0].Message.Content, nil
 }
 
 func main() {
-	lambda.Start(HandleRequest)
+	ctx := context.Background()
+	message, err := sendToOpenAI(ctx, "Hello!")
+	fmt.Println(message)
+	if err != nil {
+		fmt.Println(err)
+	}
+	// lambda.Start(HandleRequest)
 }
