@@ -8,7 +8,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/openai/openai-go"
+	"github.com/sashabaranov/go-openai"
 )
 
 type ChatInput struct {
