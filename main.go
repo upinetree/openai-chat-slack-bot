@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -19,6 +20,8 @@ type ChatResponse struct {
 }
 
 func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	fmt.Printf("Processing request data for request %s.\n", request.RequestContext.RequestID)
+
 	var chatRequest ChatRequest
 
 	err := json.Unmarshal([]byte(request.Body), &chatRequest)
@@ -62,11 +65,21 @@ func sendToOpenAI(ctx context.Context, message string) (string, error) {
 }
 
 func main() {
-	ctx := context.Background()
-	message, err := sendToOpenAI(ctx, "Hello!")
-	fmt.Println(message)
-	if err != nil {
-		fmt.Println(err)
+	debug := os.Getenv("DEBUG")
+
+	if debug != "" {
+		ctx := context.Background()
+
+		message, err := sendToOpenAI(ctx, "Hello!")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println(message)
+
+		return
 	}
-	// lambda.Start(HandleRequest)
+
+	lambda.Start(HandleRequest)
 }
