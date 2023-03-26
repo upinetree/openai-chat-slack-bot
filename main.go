@@ -19,28 +19,29 @@ type ChatResponse struct {
 	Response string `json:"response"`
 }
 
-func HandleRequest(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
 	fmt.Printf("Processing request data for request %s.\n", request.RequestContext.RequestID)
+	fmt.Printf("Request body: %s.\n", request.Body)
 
 	var chatRequest ChatRequest
 
 	err := json.Unmarshal([]byte(request.Body), &chatRequest)
 	if err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 400}, nil
+		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 400}, nil
 	}
 
 	response, err := sendToOpenAI(ctx, chatRequest.Message)
 	if err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
+		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
 	chatResponse := ChatResponse{Response: response}
 	responseBody, err := json.Marshal(chatResponse)
 	if err != nil {
-		return events.APIGatewayProxyResponse{Body: err.Error(), StatusCode: 500}, nil
+		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
-	return events.APIGatewayProxyResponse{Body: string(responseBody), StatusCode: 200}, nil
+	return events.LambdaFunctionURLResponse{Body: string(responseBody), StatusCode: 200}, nil
 }
 
 func sendToOpenAI(ctx context.Context, message string) (string, error) {
