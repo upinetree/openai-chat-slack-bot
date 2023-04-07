@@ -30,6 +30,7 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 
 	err := config.requestVerifier.Verify(request)
 	if err != nil {
+		fmt.Printf("Failed to verify: %+v\n", err)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusUnauthorized}, nil
 	}
 
@@ -37,17 +38,20 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 
 	err = json.Unmarshal([]byte(request.Body), &chatRequest)
 	if err != nil {
+		fmt.Printf("Failed to unmarshal JSON for the chat request: %+v\n", err)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 400}, nil
 	}
 
 	response, err := sendToOpenAI(ctx, chatRequest.Message)
 	if err != nil {
+		fmt.Printf("Failed to request OpenAI: %+v\n", err)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
 	chatResponse := ChatResponse{Response: response}
 	responseBody, err := json.Marshal(chatResponse)
 	if err != nil {
+		fmt.Printf("Failed to marshal JSON for the response body: %+v\n", err)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 500}, nil
 	}
 
@@ -151,6 +155,8 @@ func init() {
 		fmt.Printf("Invalid boot mode: %s\n", config.bootMode)
 		os.Exit(1)
 	}
+
+	fmt.Printf("Boot mode: %s\n", config.bootMode)
 }
 
 func main() {
