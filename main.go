@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/sashabaranov/go-openai"
 	"github.com/slack-go/slack"
+	"github.com/slack-go/slack/slackevents"
 )
 
 type ChatRequest struct {
@@ -34,6 +35,22 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusUnauthorized}, nil
 	}
 
+	eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(request.Body), slackevents.OptionNoVerifyToken())
+	if err != nil {
+		fmt.Printf("Failed to parse request body as a slack event: %+v", err)
+		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusInternalServerError}, nil
+	}
+
+	if eventsAPIEvent.Type == slackevents.URLVerification {
+		var r *slackevents.ChallengeResponse
+		err := json.Unmarshal([]byte(request.Body), &r)
+		if err != nil {
+			fmt.Printf("Failed to unmarshal JSON as a slack challenge response: %+v\n", err)
+			return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusBadRequest}, nil
+		}
+		return events.LambdaFunctionURLResponse{Body: r.Challenge, StatusCode: 200}, nil
+	}
+
 	var chatRequest ChatRequest
 
 	err = json.Unmarshal([]byte(request.Body), &chatRequest)
@@ -42,6 +59,7 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 400}, nil
 	}
 
+	fmt.Printf("Requesting OpenAI API: %s\n", chatRequest.Message)
 	response, err := sendToOpenAI(ctx, chatRequest.Message)
 	if err != nil {
 		fmt.Printf("Failed to request OpenAI: %+v\n", err)
