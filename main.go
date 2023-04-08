@@ -30,6 +30,13 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 	fmt.Printf("Request headers: %+v.\n", request.Headers)
 	fmt.Printf("Request body: %s.\n", request.Body)
 
+	// Simply avoid retries, generally for the 3 seconds limit
+	// https://api.slack.com/apis/connections/events-api#retries
+	if request.Headers["x-slack-retry-num"] != "" {
+		fmt.Printf("Avoid retries (%+v): %+v", request.Headers["x-slack-retry-num"], request.Headers["x-slack-retry-reason"])
+		return events.LambdaFunctionURLResponse{StatusCode: http.StatusOK}, nil
+	}
+
 	err := config.requestVerifier.Verify(request)
 	if err != nil {
 		fmt.Printf("Failed to verify: %+v\n", err)
