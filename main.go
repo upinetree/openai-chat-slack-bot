@@ -26,7 +26,6 @@ type ChatResponse struct {
 }
 
 func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
-	fmt.Printf("Processing request data for request %s.\n", request.RequestContext.RequestID)
 	fmt.Printf("Request headers: %+v.\n", request.Headers)
 	fmt.Printf("Request body: %s.\n", request.Body)
 
