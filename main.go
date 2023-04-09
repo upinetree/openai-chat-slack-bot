@@ -17,14 +17,6 @@ import (
 	"github.com/slack-go/slack/slackevents"
 )
 
-type ChatRequest struct {
-	Message string `json:"message"`
-}
-
-type ChatResponse struct {
-	Response string `json:"response"`
-}
-
 func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
 	fmt.Printf("Request headers: %+v.\n", request.Headers)
 	fmt.Printf("Request body: %s.\n", request.Body)
@@ -86,7 +78,9 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 
 	// Include the message in the response, assuming it is not a slack request (generally for dev)
 	if eventsAPIEvent.Type == "" {
-		var chatRequest ChatRequest
+		var chatRequest struct {
+			Message string `json:"message"`
+		}
 
 		err = json.Unmarshal([]byte(request.Body), &chatRequest)
 		if err != nil {
@@ -101,7 +95,10 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 			return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 500}, nil
 		}
 
-		chatResponse := ChatResponse{Response: response}
+		chatResponse := struct {
+			Response string `json:"response"`
+		}{Response: response}
+
 		responseBody, err := json.Marshal(chatResponse)
 		if err != nil {
 			fmt.Printf("Failed to marshal JSON for the response body: %+v\n", err)
