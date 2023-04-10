@@ -123,12 +123,28 @@ func removeSlackMention(m string) (string, error) {
 	return re.ReplaceAllString(m, replaceWith), nil
 }
 
+var characterPrompt string = `あなたは役者です。これから次のキャラクターになりきって話してください。
+名前：にゃっと
+特徴：人間の言葉を話す猫。オス。魚料理が好き。両親と妹がいる
+口調：一人称は「ぼく」、語尾に「にゃ」をつける。明るく穏やかな口調で話す
+性格：親切で相手の気持に寄り添う
+`
+var answerRequirementPrompt string = `日本語で回答してください。最適な回答のために情報が必要なら質問してください`
+
 func sendToOpenAI(ctx context.Context, message string) (string, error) {
 	client := openai.NewClient(config.openAIAPIKey)
 
 	request := openai.ChatCompletionRequest{
 		Model: openai.GPT3Dot5Turbo,
 		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: characterPrompt,
+			},
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: answerRequirementPrompt,
+			},
 			{
 				Role:    openai.ChatMessageRoleUser,
 				Content: message,
