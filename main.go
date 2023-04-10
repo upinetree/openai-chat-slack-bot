@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"regexp"
@@ -15,28 +14,29 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
+	"github.com/upinetree/openai-chat-slack-bot/log"
 )
 
 func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest) (events.LambdaFunctionURLResponse, error) {
-	fmt.Printf("Request headers: %+v.\n", request.Headers)
-	fmt.Printf("Request body: %s.\n", request.Body)
+	log.Info("Request headers: %+v", request.Headers)
+	log.Info("Request body: %s", request.Body)
 
 	// Simply avoid retries, generally for the 3 seconds limit
 	// https://api.slack.com/apis/connections/events-api#retries
 	if request.Headers["x-slack-retry-num"] != "" {
-		fmt.Printf("Avoid retries (%+v): %+v", request.Headers["x-slack-retry-num"], request.Headers["x-slack-retry-reason"])
+		log.Error("Avoid retries (%+v): %+v", request.Headers["x-slack-retry-num"], request.Headers["x-slack-retry-reason"])
 		return events.LambdaFunctionURLResponse{StatusCode: http.StatusOK}, nil
 	}
 
 	err := config.requestVerifier.Verify(request)
 	if err != nil {
-		fmt.Printf("Failed to verify: %+v\n", err)
+		log.Error("Failed to verify: %+v", err)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusUnauthorized}, nil
 	}
 
 	eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(request.Body), slackevents.OptionNoVerifyToken())
 	if err != nil {
-		fmt.Printf("Failed to parse request body as a slack event: %+v", err)
+		log.Error("Failed to parse request body as a slack event: %+v", err)
 		return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusInternalServerError}, nil
 	}
 
@@ -44,7 +44,7 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 		var r *slackevents.ChallengeResponse
 		err := json.Unmarshal([]byte(request.Body), &r)
 		if err != nil {
-			fmt.Printf("Failed to unmarshal JSON as a slack challenge response: %+v\n", err)
+			log.Error("Failed to unmarshal JSON as a slack challenge response: %+v", err)
 			return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusBadRequest}, nil
 		}
 		return events.LambdaFunctionURLResponse{Body: r.Challenge, StatusCode: 200}, nil
@@ -56,21 +56,21 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 		case *slackevents.AppMentionEvent:
 			m, err := removeSlackMention(ev.Text)
 			if err != nil {
-				fmt.Printf("Failed to remove slack mention from event text: %+v\n", err)
+				log.Error("Failed to remove slack mention from event text: %+v", err)
 				return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusInternalServerError}, nil
 			}
 
-			fmt.Printf("Requesting OpenAI API: %s\n", m)
+			log.Info("Requesting OpenAI API: %s", m)
 			response, err := sendToOpenAI(ctx, m)
 			if err != nil {
-				fmt.Printf("Failed to request OpenAI: %+v\n", err)
+				log.Error("Failed to request OpenAI: %+v", err)
 				return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusInternalServerError}, nil
 			}
 
 			api := slack.New(config.slackAPIToken)
 			_, _, err = api.PostMessage(ev.Channel, slack.MsgOptionText(response, false))
 			if err != nil {
-				fmt.Printf("Failed to send a response message to slack: %+v\n", err)
+				log.Error("Failed to send a response message to slack: %+v", err)
 				return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: http.StatusBadRequest}, nil
 			}
 		}
@@ -84,14 +84,14 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 
 		err = json.Unmarshal([]byte(request.Body), &chatRequest)
 		if err != nil {
-			fmt.Printf("Failed to unmarshal JSON for the chat request: %+v\n", err)
+			log.Error("Failed to unmarshal JSON for the chat request: %+v", err)
 			return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 400}, nil
 		}
 
-		fmt.Printf("Requesting OpenAI API: %s\n", chatRequest.Message)
+		log.Info("Requesting OpenAI API: %s", chatRequest.Message)
 		response, err := sendToOpenAI(ctx, chatRequest.Message)
 		if err != nil {
-			fmt.Printf("Failed to request OpenAI: %+v\n", err)
+			log.Error("Failed to request OpenAI: %+v", err)
 			return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 500}, nil
 		}
 
@@ -101,7 +101,7 @@ func HandleRequest(ctx context.Context, request events.LambdaFunctionURLRequest)
 
 		responseBody, err := json.Marshal(chatResponse)
 		if err != nil {
-			fmt.Printf("Failed to marshal JSON for the response body: %+v\n", err)
+			log.Error("Failed to marshal JSON for the response body: %+v", err)
 			return events.LambdaFunctionURLResponse{Body: err.Error(), StatusCode: 500}, nil
 		}
 
@@ -206,11 +206,11 @@ func init() {
 		}
 		return m
 	}()
-	fmt.Printf("Boot mode: %s\n", config.bootMode)
+	log.Info("Boot mode: %s", config.bootMode)
 
 	secret := os.Getenv("AUTH_SECRET")
 	if secret == "" {
-		fmt.Println("Auth secret missing")
+		log.Error("Auth secret missing")
 		os.Exit(1)
 	}
 
@@ -220,19 +220,19 @@ func init() {
 	case "prod":
 		config.requestVerifier = slackSignedSecretVerifier{secret: secret}
 	default:
-		fmt.Printf("Invalid boot mode: %s\n", config.bootMode)
+		log.Error("Invalid boot mode: %s", config.bootMode)
 		os.Exit(1)
 	}
 
 	config.openAIAPIKey = os.Getenv("OPENAI_API_KEY")
 	if config.openAIAPIKey == "" {
-		fmt.Println("OpenAI API Key is missing")
+		log.Error("OpenAI API Key is missing")
 		os.Exit(1)
 	}
 
 	config.slackAPIToken = os.Getenv("SLACK_API_TOKEN")
 	if config.slackAPIToken == "" {
-		fmt.Println("Slack API Token is missing")
+		log.Error("Slack API Token is missing")
 		os.Exit(1)
 	}
 }
@@ -243,7 +243,7 @@ func main() {
 	if debug != "" {
 		req := events.LambdaFunctionURLRequest{Headers: map[string]string{"authorization": "Bearer test-token"}}
 		if err := config.requestVerifier.Verify(req); err != nil {
-			fmt.Printf("Fail to verify request: %+v", err)
+			log.Error("Failed to verify request: %+v", err)
 			return
 		}
 
@@ -251,17 +251,17 @@ func main() {
 
 		message, err := sendToOpenAI(ctx, "Hello!")
 		if err != nil {
-			fmt.Println(err)
+			log.Error("Failed to send a message to OpenAI API", err)
 			return
 		}
 
-		fmt.Println(message)
+		log.Info(message)
 
 		{
 			api := slack.New(config.slackAPIToken)
 			_, _, err := api.PostMessage(os.Getenv("DEBUG_SLACK_CH_ID"), slack.MsgOptionText(message, false))
 			if err != nil {
-				fmt.Printf("Failed to send a response message to slack: %+v\n", err)
+				log.Warn("Failed to send a response message to slack: %+v", err)
 			}
 		}
 
