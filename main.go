@@ -215,7 +215,7 @@ func init() {
 	}
 
 	switch config.bootMode {
-	case "dev":
+	case "dev", "local":
 		config.requestVerifier = bearerVerifier{secret: secret}
 	case "prod":
 		config.requestVerifier = slackSignedSecretVerifier{secret: secret}
@@ -238,9 +238,7 @@ func init() {
 }
 
 func main() {
-	debug := os.Getenv("DEBUG")
-
-	if debug != "" {
+	if config.bootMode == "local" {
 		req := events.LambdaFunctionURLRequest{Headers: map[string]string{"authorization": "Bearer test-token"}}
 		if err := config.requestVerifier.Verify(req); err != nil {
 			log.Error("Failed to verify request: %+v", err)

@@ -13,7 +13,7 @@ func init() {
 	var err error
 
 	switch m := os.Getenv("MODE"); m {
-	case "", "local": // TODO: debug mode => local mode
+	case "", "local":
 		logger, err = zap.NewDevelopment()
 	default:
 		logger, err = zap.NewProduction()
