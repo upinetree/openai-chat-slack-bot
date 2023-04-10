@@ -26,14 +26,14 @@ func init() {
 	sugar = logger.WithOptions(zap.AddCallerSkip(1)).Sugar()
 }
 
-func Info(args ...interface{}) {
-	sugar.Info(args...)
+func Infof(template string, args ...interface{}) {
+	sugar.Infof(template, args...)
 }
 
-func Warn(args ...interface{}) {
-	sugar.Warn(args...)
+func Warnf(template string, args ...interface{}) {
+	sugar.Warnf(template, args...)
 }
 
-func Error(args ...interface{}) {
-	sugar.Error(args...)
+func Errorf(template string, args ...interface{}) {
+	sugar.Errorf(template, args...)
 }
